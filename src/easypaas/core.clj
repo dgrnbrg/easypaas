@@ -8,10 +8,10 @@
             [easypaas.consensus :as consensus]))
 
 (require 'spyscope.core)
-(def job-blah {:command ["/bin/sh" "-c" "sleep $[ ( $RANDOM % 60 ) + 10 ]"]
+(def job-blah {:command ["/bin/sh" "-c" "sleep $[ ( $RANDOM % 600 ) + 30 ]"]
           :name "random-sleeper"
           :root "/random-sleeper"
-          :target {:instances 2 
+          :target {:instances 10
                    :machines 1}
           :resources {:cpus 0.25
                       :mem 10.0}})
@@ -89,7 +89,7 @@
                                        :task-failed
                                        :task-killed
                                        :task-lost} (:state status))
-                                (.requestResources driver [(clj-mesos.marshalling/map->proto org.apache.mesos.Protos$Request {:resources {:cpus 0.25
+                                #_(.requestResources driver [(clj-mesos.marshalling/map->proto org.apache.mesos.Protos$Request {:resources {:cpus 0.25
                                                                                     :mem 10.0}})])))
                 (disconnected [driver]
                        (.println System/out (str "disco!!!")))
