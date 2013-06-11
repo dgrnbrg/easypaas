@@ -7,24 +7,13 @@
             [zookeeper.data :as data]
             [easypaas.consensus :as consensus]))
 
-(require 'spyscope.core)
 (def job-blah {:command ["/bin/sh" "-c" "sleep $[ ( $RANDOM % 600 ) + 30 ]"]
-          :name "random-sleeper"
-          :root "/random-sleeper"
-          :target {:instances 10
-                   :machines 1}
-          :resources {:cpus 0.25
-                      :mem 10.0}})
-
-(clj-mesos.marshalling/proto->map (clj-mesos.marshalling/map->proto org.apache.mesos.Protos$TaskInfo
-                                  {:name "foo"
-                                   :task-id "bar"
-                                   :slave-id "baz"
-                                   :resources {:cpus 1.0 :mem 10.0}
-                                   :executor {:executor-id "foobar"
-                                              :framework-id "fizzle"
-                                              :command {:value "/Users/dgrnbrg/easypaas/executor"}}
-                                   :data (data/to-bytes (pr-str ["hello" " world"]))}))
+               :name "random-sleeper"
+               :root "/random-sleeper"
+               :target {:instances 10
+                        :machines 1}
+               :resources {:cpus 0.25
+                           :mem 10.0}})
 
 (defn allocate-resources-to-job
   [driver failover-cfg job offers]
@@ -39,7 +28,7 @@
     (reduce
       (fn [[needed-instances remaining-offers] offer]
         (let [{:keys [id slave-id]
-               {:keys [cpus mem]} :resources} #spy/d offer]
+               {:keys [cpus mem]} :resources} offer]
           (if (and (pos? needed-instances) (>= cpus cpus-req) (>= mem mem-req))
             (let [max-by-cpus (int (/ cpus cpus-req))
                   max-by-mem (int (/ mem mem-req))
@@ -69,8 +58,6 @@
       [needed-instances []]
       offers)))
 
-[(clj-mesos.marshalling/map->proto org.apache.mesos.Protos$Request {:resources {:cpus 0.25
-                                                                                    :mem 10.0}})]
 (defn make-scheduler
   [job master framework-info]
   (let [framework (promise)
@@ -118,7 +105,8 @@
                       context (consensus/connect job)
                       _ (consensus/join-group
                           (assoc context
-                                 :leader-fn #(let [sched (make-scheduler
+                                 :leader-fn #_(fn [& _] (println "leading"))
+                                 #(let [sched (make-scheduler
                                                            job
                                                            (:master @master)
                                                            (:framework-info @master))]
@@ -159,10 +147,8 @@
 
 (comment
 
-  (def driver (make-scheduler job-blah "localhost:5050" {:user "" :name "easypaas"}))
+  (def driver (make-scheduler job-blah "172.31.235.253:5050" {:user "" :name "easypaas"}))
 
-  (scheduler/request-resources driver [{:cpu 10}])
-  
   (do
     (consensus/init job-blah)
     (scheduler/start driver))
@@ -174,9 +160,15 @@
   (scheduler/stop driver)
 
   (println "n ="(count @counts))
+  (println "min =" (quot (* 5 (count @counts)) 60))
   (println "mean ="(float (/ (apply + @counts) (count @counts))))
   (println "stddev ="(Math/sqrt (- (float (/ (apply + (map #(* % %) @counts)) (count @counts))) (#(* % %) (float (/ (apply + @counts) (count @counts)))) )))
 
+  ;; Drop the first 5 minutes of data
+  (swap! counts (partial drop (* 5 (/ 60000 5000))))
+
   (def counts (atom []))
-  (future (doall (repeatedly #(do (Thread/sleep 1000) (swap! counts conj (count (consensus/members job-blah)))))))
+
+  (future (doall (repeatedly #(do (Thread/sleep 5000) (swap! counts conj (count (consensus/members job-blah)))))))
+
   )
